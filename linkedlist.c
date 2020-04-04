@@ -129,8 +129,8 @@ void printLinkedList(LinkedList* list)
     {
         /* printf("%s\n", (char*)(currentNode -> data)); */
         /* Updates the currentNode to its next, traversing the list */
-        (*list -> printFunc)(currentNode -> data);
-        currentNode = currentNode -> next;
+//        (*list -> printFunc)(currentNode -> data);
+//       currentNode = currentNode -> next;
     }
 }
 
@@ -149,7 +149,7 @@ void freeLinkedList(LinkedList* list)
         nextNode = currentNode -> next;
         /*free(currentNode); */
     
-        (*list -> freeFunc)(currentNode -> data);
+//        (*list -> freeFunc)(currentNode -> data);
         free(currentNode);
         currentNode = nextNode;
     }
