@@ -18,12 +18,14 @@ int t;
 LinkedList* buffer;
 pthread_mutex_t mutex; 
 pthread_cond_t cond;
+bool finished;
 
 void** retval;
 
 int main(int argc, char* argv[])
 {
     bool error = false;
+    finished = false;
 
     if(argc == 3)
     {
@@ -34,7 +36,7 @@ int main(int argc, char* argv[])
         /* create the mutex lock */
         pthread_mutex_init(&mutex, NULL);
 
-        pthread_t liftR, lift1;
+        pthread_t liftR, lift1, lift2, lift3;
         pthread_attr_t attr;
 
         /* get the default attributes */
@@ -47,9 +49,17 @@ int main(int argc, char* argv[])
         pthread_create(&lift1, &attr, lift, NULL);
         printf("Lift 1 thread created\n");
 
+        pthread_create(&lift2, &attr, lift, NULL);
+        printf("Lift 2 thread created\n");
+        pthread_create(&lift3, &attr, lift, NULL);
+        printf("Lift 3 thread created\n");
+       
         /* Have to check if these work correctly and print out errors */
         pthread_join(liftR, retval);
+        printf("FINISHED FINISHE DFINISHEHJAKFGHJAKEFLADJFALFHA\n");
         pthread_join(lift1, retval);
+        pthread_join(lift2, retval);
+        pthread_join(lift3, retval);
         pthread_mutex_destroy(&mutex);
         pthread_cond_destroy(&cond);
     }  
@@ -62,27 +72,26 @@ int main(int argc, char* argv[])
 
 void *request()
 {
-
     FILE* f;
     int nRead, origFloor, destFloor;
     bool error;
     FloorReq* floor;
     
     error = false; 
-    
-    /* aquires mutex lock so it can enter critical section (the buffer) */
-    pthread_mutex_lock(&mutex);
-
-    while(bufferCount > bufferLimit)
-    {
-        pthread_cond_wait(&cond, &mutex);
-    }
 
     f = fopen("sim_input", "r");
     if(f != NULL)
     {
         do
         {
+            /* aquires mutex lock so it can enter critical section (the buffer) */
+            pthread_mutex_lock(&mutex);
+
+            while(bufferCount >= bufferLimit)
+            {
+                pthread_cond_wait(&cond, &mutex);
+            }
+
             nRead = fscanf(f, "%d %d\n", &origFloor, &destFloor);
             if(nRead == 2)
             {
@@ -91,7 +100,7 @@ void *request()
                 floor -> destFloor = destFloor;
 
                 /* If buffer is full, wait until its free */
-                while(bufferCount >= bufferLimit)
+                while(bufferCount + 1 > bufferLimit)
                 {
                     printf("request waiting...\n");
                     pthread_cond_wait(&cond, &mutex);
@@ -100,7 +109,7 @@ void *request()
 
                 insertLast(floor, buffer);
                 bufferCount++;
-                printf("%d\n", bufferCount);
+                printf("added: %d\n", bufferCount);
             }
             else
             {
@@ -108,17 +117,24 @@ void *request()
                 printf("ERROR: File is in wrong format\n");
                 error = true;
             }
+
+            if(feof(f))
+            {
+                finished = true;
+            }
+
+            /* Tells lifts that they can check their wait condition */ 
+            pthread_cond_broadcast(&cond);
+            /* releases the mutex lock */
+            pthread_mutex_unlock(&mutex);
+
         } while(!feof(f) && !error);
+        fclose(f);
     }
-
-
-    /* releases the mutex lock */
-    pthread_mutex_unlock(&mutex);
-
-    return NULL;
+    pthread_exit(NULL);
 }
 
-void *lift()
+void *lift(pthread_t r)
 {
     FloorReq* req;
     while(true)
@@ -127,25 +143,33 @@ void *lift()
         pthread_mutex_lock(&mutex);
 
         /* Waits if the buffer is empty */
-        while(bufferCount <= 0)
+        while(bufferCount - 1 < 0)
         {
             pthread_cond_wait(&cond, &mutex);
         }
 
+        printf("removing %d\n", bufferCount);
         bufferCount--;
-        printf("%d\n", bufferCount);
-
         req = (FloorReq*)removeFirst(buffer);
 
-        printf("Moving lift from floor %d to %d\n", req -> origFloor, req -> destFloor);
-        sleep(t);
+        printf("Moving %lu from floor %d to %d --- request %d\n", pthread_self(), req -> origFloor, req -> destFloor, bufferCount);
+
+        printf("Lift waiting : %lu\n", pthread_self());
 
 
         /* Signals the Wait in request() (probably can use signal because all threads are the same*/
         pthread_cond_broadcast(&cond);
         /* releases the mutex lock to allow request() to use it again */
         pthread_mutex_unlock(&mutex); 
+
+        sleep(t);
+        
+        if(finished)
+        {
+            break;
+        }
     }
-    return NULL;
+
+    pthread_exit(NULL);
 }
 

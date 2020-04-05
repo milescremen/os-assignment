@@ -76,6 +76,11 @@ void* removeFirst(LinkedList* list)
     {
         removedNode = NULL;
     }
+    else if(list -> head -> next == NULL) /* List is only size one */
+    {
+        removedNode = list -> head;
+        list -> head = NULL;
+    }
     else
     {
         /* Stores the current head in removedNode*/
@@ -90,6 +95,7 @@ void* removeFirst(LinkedList* list)
     }
     removedData = removedNode -> data;
     free(removedNode);
+    list -> size--;
     return removedData;
 }
 
@@ -117,6 +123,7 @@ void* removeLast(LinkedList* list)
     }
     removedData = removedNode -> data;
     free(removedNode);
+    list -> size--;
     return removedData;
 }
 
