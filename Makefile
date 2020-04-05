@@ -2,14 +2,14 @@
 CC = clang
 CFLAGS = -Wall -Werror -std=c11 -g -pthread -fsanitize=thread 
 LDFLAGS= -pthread -fsanitize=thread
-OBJ = main.o linkedlist.o
+OBJ = lifts.o linkedlist.o
 EXEC = assignment
 
 $(EXEC) : $(OBJ)
 		$(CC) $(OBJ) -o $(EXEC) -g $(LDFLAGS)
 
-main.o : main.c structs.h
-		$(CC) main.c -c $(CFLAGS)
+lifts.o : lifts.c 
+		$(CC) lifts.c -c $(CFLAGS)
 
 linkedlist.o : linkedlist.c linkedlist.h
 		$(CC) linkedlist.c -c $(CFLAGS)

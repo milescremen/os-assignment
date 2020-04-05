@@ -18,14 +18,14 @@ int t;
 LinkedList* buffer;
 pthread_mutex_t mutex; 
 pthread_cond_t cond;
-bool finished;
+int done = 0;
+bool end = false;
 
 void** retval;
 
 int main(int argc, char* argv[])
 {
     bool error = false;
-    finished = false;
 
     if(argc == 3)
     {
@@ -118,10 +118,8 @@ void *request()
                 error = true;
             }
 
-            if(feof(f))
-            {
-                finished = true;
-            }
+            done++;
+            printf("Imported (%d/%d)\n", done, bufferLimit);
 
             /* Tells lifts that they can check their wait condition */ 
             pthread_cond_broadcast(&cond);
@@ -130,6 +128,9 @@ void *request()
 
         } while(!feof(f) && !error);
         fclose(f);
+        pthread_mutex_lock(&mutex);
+        end = true;
+        pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);
 }
@@ -137,16 +138,25 @@ void *request()
 void *lift(pthread_t r)
 {
     FloorReq* req;
-    while(true)
+    bool finished;
+    finished = false;
+
+    while(!finished)
     {
         /* aquires the mutext lock */
         pthread_mutex_lock(&mutex);
 
+        if(end)
+        {   
+            break;
+            finished = true;
+        }
         /* Waits if the buffer is empty */
         while(bufferCount - 1 < 0)
         {
             pthread_cond_wait(&cond, &mutex);
         }
+
 
         printf("removing %d\n", bufferCount);
         bufferCount--;
@@ -157,18 +167,16 @@ void *lift(pthread_t r)
         printf("Lift waiting : %lu\n", pthread_self());
 
 
+        printf("%s\n", finished ? "true" : "false");
+
         /* Signals the Wait in request() (probably can use signal because all threads are the same*/
         pthread_cond_broadcast(&cond);
         /* releases the mutex lock to allow request() to use it again */
         pthread_mutex_unlock(&mutex); 
 
         sleep(t);
-        
-        if(finished)
-        {
-            break;
-        }
     }
+    printf("THREAD EXITED \n");
 
     pthread_exit(NULL);
 }
