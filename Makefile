@@ -1,6 +1,6 @@
 #Makefile Variables
 CC = clang
-CFLAGS = -Wall -Werror -std=c11 -g -pthread -fsanitize=thread 
+CFLAGS = -Wall -Werror -std=c11 -g -pthread -fsanitize=thread
 LDFLAGS= -pthread -fsanitize=thread
 OBJ = lifts.o linkedlist.o
 EXEC = assignment

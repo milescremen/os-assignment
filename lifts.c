@@ -152,10 +152,10 @@ void *request()
 void *lift()
 {
     FloorReq* request;
-    bool localFinished = false;
+    bool localFinishedConsumer = false;
 
     /* Loops until the producer thread ends and the buffer is empty */
-    while(!localFinished)
+    while(!localFinishedConsumer)
     {
         /* Aquire the mutex lock */
         pthread_mutex_lock(&mutex);
@@ -163,11 +163,11 @@ void *lift()
         /* If buffer is empty, put thread on cond wait */
         while(bufferCount == 0 && !globalFinishedConsumer)
         {
-            printf("%lu entered wait\n", pthread_self());
+            //--printf("%lu entered wait\n", pthread_self());
             pthread_cond_wait(&cond, &mutex);
-            printf("%lu exited wait\n", pthread_self());
-            printf("BC: %d\n", bufferCount);
-            printf("%s\n", localFinished ? "true" : "false");
+            //--printf("%lu exited wait\n", pthread_self());
+            //--printf("BC: %d\n", bufferCount);
+            //--printf("%s\n", localFinishedConsumer ? "true" : "false");
         }
 
         /* CRITICAL SECTION */
@@ -195,15 +195,26 @@ void *lift()
 
         if(globalFinishedConsumer || (finishedProducer && bufferCount == 0))
         {
-            localFinished = true;
+            localFinishedConsumer = true;
             globalFinishedConsumer = true;
         }
 
+        /* 
+        if(globalFinishedConsumer)
+        {
+            localFinishedConsumer = true;
+        }
+        else if(finishedProducer && bufferCount == 0)
+        {
+            localFinishedConsumer = true;
+            globalFinishedConsumer = true;
+        }
+        */
 
         /* CRITICAL SECTION END */
         /* Broadcast to other waiting threads */
         
-        printf("%lu BROADCASTED\n", pthread_self());
+        //--printf("%lu BROADCASTED\n", pthread_self());
         pthread_cond_broadcast(&cond);
         /* Release the mutex lock */
         pthread_mutex_unlock(&mutex);
