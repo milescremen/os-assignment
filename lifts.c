@@ -1,19 +1,4 @@
-
-#include "linkedlist.h"
-#include <pthread.h>
-#include <stdbool.h>
-#include <unistd.h>
-
-/* Struct definitions */
-typedef struct 
-{
-    int origFloor;
-    int destFloor;
-} FloorReq;
-
-/* Forward declarations */
-void *request();
-void *lift();
+#include "lifts.h"
 
 /**
  * bufferCount - the current amount of items in the buffer
@@ -41,6 +26,13 @@ int main(int argc, char* argv[])
         pthread_t liftR, lift1, lift2, lift3;
         pthread_attr_t attr;
 
+        Lift *liftPtr1, *liftPtr2, *liftPtr3;
+        liftPtr1 = createLiftStruct("Lift 1");
+        liftPtr2 = createLiftStruct("Lift 2");
+        liftPtr3 = createLiftStruct("Lift 3");
+
+
+
         /* Buffer Creation */
         buffer = createLinkedList();
 
@@ -57,13 +49,13 @@ int main(int argc, char* argv[])
         pthread_create(&liftR, &attr, request, NULL);
         printf("Lift Request thread created\n");
 
-        pthread_create(&lift1, &attr, lift, NULL);
+        pthread_create(&lift1, &attr, lift, liftPtr1);
         printf("Lift 1 thread created\n");
        
-        pthread_create(&lift2, &attr, lift, NULL);
+        pthread_create(&lift2, &attr, lift, liftPtr2);
         printf("Lift 2 thread created\n");
       
-        pthread_create(&lift3, &attr, lift, NULL);
+        pthread_create(&lift3, &attr, lift, liftPtr3);
         printf("Lift 3 thread created\n");
 
         pthread_join(liftR, retval);
@@ -91,9 +83,10 @@ int main(int argc, char* argv[])
 void *request()
 {
     FILE* f;
-    int nRead, origFloor, destFloor;
+    int nRead, origFloor, destFloor, requestCount;
     FloorReq* floor;
     bool error = false;
+    requestCount = 0;
 
     f = fopen("sim_input", "r");
     if(f != NULL)
@@ -122,7 +115,9 @@ void *request()
                 /* Insert floor struct into the buffer */ 
                 insertLast(floor, buffer);
                 bufferCount++;
+                requestCount++;
                 printf("added: %d\n", bufferCount);
+                outputRequestLogs(floor, requestCount);
 
                 if(feof(f))
                 {
@@ -149,9 +144,9 @@ void *request()
 /**
  * Consumer thread
  */
-void *lift()
+void *lift(Lift* liftPtr)
 {
-    FloorReq* request;
+    FloorReq* req;
     bool localFinishedConsumer = false;
 
     /* Loops until the producer thread ends and the buffer is empty */
@@ -172,14 +167,16 @@ void *lift()
 
         /* CRITICAL SECTION */
 
-
+        /* Protects from segfaults when exiting */
         if(bufferCount != 0)
         {
             /* Removes a request from the buffer */
-            request = (FloorReq*) removeFirst(buffer);
+            req = (FloorReq*) removeFirst(buffer);
             bufferCount--;
 
-            printf("Moving %lu from floor %d to %d --- request %d\n", pthread_self(), request -> origFloor, request -> destFloor, bufferCount);
+            outputLiftLogs(liftPtr, req);
+
+            printf("Moving %lu from floor %d to %d --- request %d\n", pthread_self(), req -> origFloor, req -> destFloor, bufferCount);
         }
 
 
@@ -224,8 +221,93 @@ void *lift()
     }
     printf("%lu broke out of loop\n", pthread_self());
 
+
+    printf("%s broke out of loop\n", liftPtr->name);
+
     pthread_exit(NULL);
 }
+
+void outputLiftLogs(Lift* lift, FloorReq* req)
+{
+    FILE* f; 
+    int prevFloor, reqMovement;
+    prevFloor = lift->currFloor;
+    lift->currFloor = req->destFloor;
+    reqMovement = abs(prevFloor - req->origFloor) + abs(req->origFloor - req->destFloor);
+    lift->totalMovement += reqMovement;
+    lift->reqNum += 1;
+
+    f = fopen("sim_out", "a");
+
+    if(f != NULL)
+    {
+        fprintf(f, 
+        "%s Operation\n"
+        "Previous position: Floor %d\n"
+        "Request: Floor %d to Floor %d\n"
+        "Detail operations:\n"
+        "\tGo from Floor %d to Floor %d\n"
+        "\tGo from Floor %d to Floor %d\n"
+        "\t#movement for this request: %d\n"
+        "\trequest: %d\n"
+        "\tTotal #movement: %d\n"
+        "Current position: Floor %d\n\n",
+        lift->name, 
+        prevFloor,
+        req->origFloor, req->destFloor,
+        prevFloor, req->origFloor,
+        req->origFloor, req->destFloor,
+        reqMovement,
+        lift->reqNum,
+        lift->totalMovement,
+        lift->currFloor
+        );
+
+        fclose(f);
+    }
+}
+
+void outputRequestLogs(FloorReq* req, int requestNum)
+{
+    FILE* f;
+
+    f = fopen("sim_out", "a");
+    
+    if(f != NULL)
+    {
+        fprintf(f,
+        "------------------------------------------\n"
+        "New Lift Request From Floor %d to Floor %d\n"
+        "Request No: %d\n"
+        "------------------------------------------\n",
+        req->origFloor, req->destFloor,
+        requestNum);
+
+        fclose(f);
+    }
+}
+
+
+/**
+ * createLift(char* name)
+ * Imports a name, creates a new Lift struct 
+ * Initalizes it and then returns a pointer to it.
+ */
+Lift* createLiftStruct(char* name)
+{
+    Lift* liftPtr;
+
+    liftPtr = (Lift*)malloc(sizeof(Lift));
+
+    liftPtr->name = name;
+    liftPtr->currFloor = 0;
+    liftPtr->reqNum = 0;
+    liftPtr->totalMovement = 0;
+
+    return liftPtr;
+}
+
+
 
 
 
