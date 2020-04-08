@@ -146,7 +146,7 @@ void *request()
  */
 void *lift(Lift* liftPtr)
 {
-    FloorReq* req;
+    FloorReq* reqPtr;
     bool localFinishedConsumer = false;
 
     /* Loops until the producer thread ends and the buffer is empty */
@@ -171,12 +171,13 @@ void *lift(Lift* liftPtr)
         if(bufferCount != 0)
         {
             /* Removes a request from the buffer */
-            req = (FloorReq*) removeFirst(buffer);
+            reqPtr = (FloorReq*) removeFirst(buffer);
             bufferCount--;
 
-            outputLiftLogs(liftPtr, req);
+            updateLiftValues(liftPtr, reqPtr);
+            outputLiftLogs(liftPtr, reqPtr);
 
-            printf("Moving %lu from floor %d to %d --- request %d\n", pthread_self(), req -> origFloor, req -> destFloor, bufferCount);
+            printf("Moving %lu from floor %d to %d --- request %d\n", pthread_self(), reqPtr -> origFloor, reqPtr -> destFloor, bufferCount);
         }
 
 
@@ -230,12 +231,6 @@ void *lift(Lift* liftPtr)
 void outputLiftLogs(Lift* lift, FloorReq* req)
 {
     FILE* f; 
-    int prevFloor, reqMovement;
-    prevFloor = lift->currFloor;
-    lift->currFloor = req->destFloor;
-    reqMovement = abs(prevFloor - req->origFloor) + abs(req->origFloor - req->destFloor);
-    lift->totalMovement += reqMovement;
-    lift->reqNum += 1;
 
     f = fopen("sim_out", "a");
 
@@ -249,15 +244,15 @@ void outputLiftLogs(Lift* lift, FloorReq* req)
         "\tGo from Floor %d to Floor %d\n"
         "\tGo from Floor %d to Floor %d\n"
         "\t#movement for this request: %d\n"
-        "\trequest: %d\n"
+        "\t#request: %d\n"
         "\tTotal #movement: %d\n"
         "Current position: Floor %d\n\n",
         lift->name, 
-        prevFloor,
+        lift->prevFloor,
         req->origFloor, req->destFloor,
-        prevFloor, req->origFloor,
+        lift->prevFloor, req->origFloor,
         req->origFloor, req->destFloor,
-        reqMovement,
+        lift->reqMovement,
         lift->reqNum,
         lift->totalMovement,
         lift->currFloor
@@ -300,11 +295,28 @@ Lift* createLiftStruct(char* name)
     liftPtr = (Lift*)malloc(sizeof(Lift));
 
     liftPtr->name = name;
-    liftPtr->currFloor = 0;
+
+    liftPtr->prevFloor = 0;
+    liftPtr->reqMovement = 0;
     liftPtr->reqNum = 0;
     liftPtr->totalMovement = 0;
+    liftPtr->currFloor = 0;
 
     return liftPtr;
+}
+
+/**
+ * Updates the lift values ready for output for logging 
+ * 
+ * 
+ */
+void updateLiftValues(Lift* lift, FloorReq* req)
+{
+    lift->prevFloor = lift->currFloor;
+    lift->reqMovement = abs(lift->prevFloor - req->origFloor) + abs(req->origFloor - req->destFloor);
+    lift->reqNum += 1;
+    lift->totalMovement += lift->reqMovement;
+    lift->currFloor = req->destFloor;
 }
 
 

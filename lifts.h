@@ -20,11 +20,12 @@ typedef struct
 typedef struct
 {
     char* name;
-    int currFloor;
+    int prevFloor;
+    int reqMovement; 
     int reqNum;
     int totalMovement;
+    int currFloor;
 } Lift;
-
 
 /* Forward declarations */
 void *request();
@@ -32,4 +33,5 @@ void *lift();
 void outputLiftLogs(Lift* lift, FloorReq* req);
 Lift* createLiftStruct(char* name);
 void outputRequestLogs(FloorReq* req, int requestNum);
+void updateLiftValues(Lift* lift, FloorReq* req);
 #endif
