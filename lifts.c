@@ -6,9 +6,7 @@
  * t - the time that lifts take
  * finishedImport - TRUE if the request() method has finished importing from file to Buffer 
  */
-LinkedList* buffer;
-int bufferCount;
-int bufferLimit; 
+Buffer* buffer;
 int t; 
 
 bool finishedProducer = false;
@@ -23,6 +21,8 @@ int main(int argc, char* argv[])
 {
     if(argc == 3)
     {
+
+        int bufferLimit;
         pthread_t liftR, lift1, lift2, lift3;
         pthread_attr_t attr;
 
@@ -30,15 +30,13 @@ int main(int argc, char* argv[])
         liftPtr1 = createLiftStruct("Lift 1");
         liftPtr2 = createLiftStruct("Lift 2");
         liftPtr3 = createLiftStruct("Lift 3");
-
-
-
+        
+        bufferLimit = atoi(argv[1]);
         /* Buffer Creation */
-        buffer = createLinkedList();
+        createBuffer(bufferLimit);
 
         /* Set global variables to command line arguments */ 
         // Most likely need to change from atoi for error checking
-        bufferLimit = atoi(argv[1]);
         t = atoi(argv[2]);
 
         /* Mutex setup - NULL for default values */
@@ -84,7 +82,7 @@ void *request()
 {
     FILE* f;
     int nRead, origFloor, destFloor, requestCount;
-    FloorReq* floor;
+    FloorReq* floorReq;
     bool error = false;
     requestCount = 0;
 
@@ -97,7 +95,7 @@ void *request()
             pthread_mutex_lock(&mutex);
 
             /* If buffer is full, put thread on cond wait */
-            while(bufferCount >= bufferLimit)
+            while(buffer->count >= buffer->size)
             {
                 printf("request entered wait\n");
                 pthread_cond_wait(&cond, &mutex);
@@ -108,21 +106,21 @@ void *request()
             nRead = fscanf(f, "%d %d\n", &origFloor, &destFloor);
             if(nRead == 2)
             {
-                floor = (FloorReq*)malloc(sizeof(FloorReq));
-                floor -> origFloor = origFloor;
-                floor -> destFloor = destFloor;
+                floorReq = (FloorReq*)malloc(sizeof(FloorReq));
+                floorReq -> origFloor = origFloor;
+                floorReq -> destFloor = destFloor;
 
                 /* Insert floor struct into the buffer */ 
-                insertLast(floor, buffer);
-                bufferCount++;
+                enqueue(floorReq);
                 requestCount++;
-                printf("added: %d\n", bufferCount);
-                outputRequestLogs(floor, requestCount);
+                printf("added: %d\n", buffer->count);
+                outputRequestLogs(floorReq, requestCount);
 
                 if(feof(f))
                 {
                     finishedProducer = true;
                 }
+                printf("%d\n", requestCount);
 
                 /* CRITICAL SECTION END */
                 /* Broadcast to other waiting threads */
@@ -156,7 +154,7 @@ void *lift(Lift* liftPtr)
         pthread_mutex_lock(&mutex);
 
         /* If buffer is empty, put thread on cond wait */
-        while(bufferCount == 0 && !globalFinishedConsumer)
+        while(buffer->count == 0 && !globalFinishedConsumer)
         {
             //--printf("%lu entered wait\n", pthread_self());
             pthread_cond_wait(&cond, &mutex);
@@ -168,16 +166,16 @@ void *lift(Lift* liftPtr)
         /* CRITICAL SECTION */
 
         /* Protects from segfaults when exiting */
-        if(bufferCount != 0)
+        printf("buffercount: %d\n", buffer->count);
+        if(buffer->count != 0)
         {
             /* Removes a request from the buffer */
-            reqPtr = (FloorReq*) removeFirst(buffer);
-            bufferCount--;
+            reqPtr = dequeue();
+            buffer->count--;
 
             updateLiftValues(liftPtr, reqPtr);
             outputLiftLogs(liftPtr, reqPtr);
-
-            printf("Moving %lu from floor %d to %d --- request %d\n", pthread_self(), reqPtr -> origFloor, reqPtr -> destFloor, bufferCount);
+            printf("Moving %s from floor %d to %d --- request %d\n", liftPtr->name, reqPtr -> origFloor, reqPtr -> destFloor, buffer->count);
         }
 
 
@@ -191,7 +189,7 @@ void *lift(Lift* liftPtr)
          * The reason for the different global / local flags, is to prevent race conditions of reading the global flag and setting the global flag
          */
 
-        if(globalFinishedConsumer || (finishedProducer && bufferCount == 0))
+        if(globalFinishedConsumer || (finishedProducer && buffer->count == 0))
         {
             localFinishedConsumer = true;
             globalFinishedConsumer = true;
@@ -220,9 +218,6 @@ void *lift(Lift* liftPtr)
         /* Sleeps thread to simulate the moving of the lift */
         sleep(t); 
     }
-    printf("%lu broke out of loop\n", pthread_self());
-
-
     printf("%s broke out of loop\n", liftPtr->name);
 
     pthread_exit(NULL);
